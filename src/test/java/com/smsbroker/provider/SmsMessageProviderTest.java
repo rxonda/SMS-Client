@@ -3,9 +3,12 @@ package com.smsbroker.provider;
 import com.smsbroker.Application;
 import com.smsbroker.api.SmsRequest;
 import com.smsbroker.api.SmsResponse;
+import com.smsbroker.repository.Sms;
+import com.smsbroker.repository.SmsRepository;
 import com.smsbroker.service.ClockService;
 import com.smsbroker.service.RestRequestObject;
 import com.smsbroker.service.SmsRestClientService;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,7 +21,9 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.observers.TestSubscriber;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import static com.smsbroker.util.Util.parse;
 import static org.mockito.Matchers.any;
@@ -44,6 +49,14 @@ public class SmsMessageProviderTest {
     @Autowired
     private SmsMessageProvider smsMessageProvider;
 
+    @Autowired
+    private SmsRepository smsRepository;
+
+    @After
+    public void cleanup() {
+        smsRepository.deleteAll();
+    }
+
     @Test
     public void shouldSendAValidSms() {
         when(smsRestClientService.exchange(any(RestRequestObject.class))).thenReturn(Observable.just("blast"));
@@ -62,6 +75,13 @@ public class SmsMessageProviderTest {
         verify(mockSubscriber, times(1)).onNext(smsResponseArgumentCaptor.capture());
 
         Assert.assertEquals("deve ser igual a ", "blast", smsResponseArgumentCaptor.getValue().getStatus());
+        List<Sms> smses = new ArrayList<>();
+        smsRepository.findAll().forEach(sms -> {
+            smses.add(sms);
+            Assert.assertEquals("O status deve ser ", "delivered", sms.getStatus());
+        });
+
+        Assert.assertEquals("Deve ter apenas 1 sms", 1, smses.size());
     }
 
     @Test
@@ -81,5 +101,37 @@ public class SmsMessageProviderTest {
 
         subscriber.assertNoValues();
         subscriber.assertNotCompleted();
+        List smses = new ArrayList<>();
+        smsRepository.findAll().forEach( sms -> {
+            smses.add(sms);
+        });
+
+        Assert.assertTrue("Nao deve ter smss", smses.isEmpty());
+    }
+
+    @Test
+    public void shouldRecordErrorOnFailedToDeliver() {
+        when(smsRestClientService.exchange(any(RestRequestObject.class))).thenReturn(Observable.error(new RuntimeException("some error")));
+        when(clockService.now()).thenReturn(parse("18/07/2016"));
+
+        Subscriber<SmsResponse> mockSubscriber = mock(Subscriber.class);
+        TestSubscriber<SmsResponse> subscriber = new TestSubscriber(mockSubscriber);
+
+        Date expired = parse("19/07/2016");
+
+        smsMessageProvider.send(new SmsRequest("endereco", "hello you my friend!", expired))
+                .subscribe(subscriber);
+
+        subscriber.assertError(RuntimeException.class);
+
+        subscriber.assertNoValues();
+        subscriber.assertNotCompleted();
+        List smses = new ArrayList<>();
+        smsRepository.findAll().forEach( sms -> {
+            smses.add(sms);
+            Assert.assertEquals("O status deve ser ", "Fail to deliver", sms.getStatus());
+        });
+
+        Assert.assertEquals("Deve ter apenas 1 sms", 1, smses.size());
     }
 }

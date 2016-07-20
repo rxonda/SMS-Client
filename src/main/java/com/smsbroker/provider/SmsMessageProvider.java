@@ -3,6 +3,8 @@ package com.smsbroker.provider;
 import com.smsbroker.api.SmsRequest;
 import com.smsbroker.api.SmsResponse;
 import com.smsbroker.api.SmsService;
+import com.smsbroker.repository.Sms;
+import com.smsbroker.repository.SmsRepository;
 import com.smsbroker.service.ClockService;
 import com.smsbroker.service.RestRequestObject;
 import com.smsbroker.service.SmsRestClientService;
@@ -17,10 +19,13 @@ import rx.Observable;
 public class SmsMessageProvider implements SmsService {
 
     @Autowired
-    private SmsRestClientService smsRestClientService;
+    private ClockService clockService;
 
     @Autowired
-    private ClockService clockService;
+    private SmsRepository smsRepository;
+
+    @Autowired
+    private SmsRestClientService smsRestClientService;
 
     @Override
     public Observable<SmsResponse> send(SmsRequest request) {
@@ -29,12 +34,21 @@ public class SmsMessageProvider implements SmsService {
                 subscriber.onError(new IllegalArgumentException("Data expirada"));
                 return;
             }
+            Sms newSms = new Sms();
+            smsRepository.save(newSms);
 
-            smsRestClientService.exchange(new RestRequestObject(0, "automatic messaging system", request.getAddress(), request.getText()))
+            smsRestClientService.exchange(new RestRequestObject(newSms.getId(), "automatic messaging system", request.getAddress(), request.getText()))
                     .subscribe(status ->{
+                        newSms.setDelivered(clockService.now());
+                        newSms.setStatus("delivered");
+                        smsRepository.save(newSms);
                         subscriber.onNext(new SmsResponse(status));
                         subscriber.onCompleted();
-                    }, t -> subscriber.onError(t));
+                    }, t -> {
+                        newSms.setStatus("Fail to deliver");
+                        smsRepository.save(newSms);
+                        subscriber.onError(t);
+                    });
         });
     }
 }
