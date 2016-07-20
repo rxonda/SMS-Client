@@ -110,6 +110,31 @@ public class SmsMessageProviderTest {
     }
 
     @Test
+    public void shouldNotSendMessagesBiggerThan160Characters() {
+        when(smsRestClientService.exchange(any(RestRequestObject.class))).thenReturn(Observable.empty());
+        when(clockService.now()).thenReturn(parse("18/07/2016"));
+
+        Subscriber<SmsResponse> mockSubscriber = mock(Subscriber.class);
+        TestSubscriber<SmsResponse> subscriber = new TestSubscriber(mockSubscriber);
+
+        Date expired = parse("19/07/2016");
+
+        smsMessageProvider.send(new SmsRequest("endereco", "This is a very long text to achieve a validation required for telecom companies not shutdown doe to amount of text messages and there exagerated lenght post by their dear customers!", expired))
+                .subscribe(subscriber);
+
+        subscriber.assertError(IllegalArgumentException.class);
+
+        subscriber.assertNoValues();
+        subscriber.assertNotCompleted();
+        List smses = new ArrayList<>();
+        smsRepository.findAll().forEach( sms -> {
+            smses.add(sms);
+        });
+
+        Assert.assertTrue("Nao deve ter smss", smses.isEmpty());
+    }
+
+    @Test
     public void shouldRecordErrorOnFailedToDeliver() {
         when(smsRestClientService.exchange(any(RestRequestObject.class))).thenReturn(Observable.error(new RuntimeException("some error")));
         when(clockService.now()).thenReturn(parse("18/07/2016"));

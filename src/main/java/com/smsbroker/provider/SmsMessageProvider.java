@@ -34,6 +34,10 @@ public class SmsMessageProvider implements SmsService {
                 subscriber.onError(new IllegalArgumentException("Data expirada"));
                 return;
             }
+            if(request.getText().length() > 160) {
+                subscriber.onError(new IllegalArgumentException("Message can not be bigger than 160 chars"));
+                return;
+            }
             Sms newSms = new Sms();
             smsRepository.save(newSms);
 
