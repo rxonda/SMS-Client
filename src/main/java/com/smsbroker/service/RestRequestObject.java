@@ -1,9 +1,9 @@
-package com.smsbroker.provider;
+package com.smsbroker.service;
 
 /**
  * Created by xonda on 7/18/16.
  */
-class RestRequestObject {
+public class RestRequestObject {
     Integer id;
     String from;
     String to;

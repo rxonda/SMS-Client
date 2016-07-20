@@ -10,6 +10,15 @@ public class SmsRequest {
     private String text;
     private Date expires;
 
+    public SmsRequest() {
+    }
+
+    public SmsRequest(String address, String text, Date expires) {
+        this.address = address;
+        this.text = text;
+        this.expires = expires;
+    }
+
     public String getAddress() {
         return address;
     }
